@@ -61,10 +61,10 @@ function Scene_Post_Post_Credits(){
 
 	};
 	_addButton(250, 2, function(){
-		window.open("http://ncase.me");
+		window.open("");
 	});
 	_addButton(480, 3, function(){
-		window.open("https://www.patreon.com/ncase");
+		window.open("");
 	});
 	_addButton(710, 4, function(){
 		Game.sceneManager.gotoScene("Quote");
@@ -99,11 +99,11 @@ function Scene_Post_Post_Credits(){
 	var text = encodeURIComponent(window.SHARE_TEXT);
 	var url = encodeURIComponent(window.SHARE_URL);
 	_addSocialButton(575, "facebook", function(){
-		var href = "https://www.facebook.com/sharer/sharer.php?u="+url+"&t="+text;
+		var href = "";
 		window.open(href);
 	});
 	_addSocialButton(610, "twitter", function(){
-		var href = "https://twitter.com/intent/tweet?text="+text+"%20"+url+"&via=ncasenmare";
+		var href = "";
 		window.open(href);
 	});
 

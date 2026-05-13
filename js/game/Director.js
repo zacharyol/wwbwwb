@@ -20,9 +20,156 @@ Game.addToManifest({
 function Director(scene){
 
 	var self = this;
+	Director.DEV_MODE_CHANCE = 0.015;
+	Director.DEV_MODE_CLOSE_DELAY = 10*60*1000;
 
 	// Scene
 	self.scene = scene;
+	self.devModeActive = false;
+	self.devModeThing = null;
+	self.devModeOverlay = null;
+	self.devModeCloseScheduled = false;
+
+	var _isPeepProp = function(prop){
+		return !!(prop && prop._CLASS_ && /Peep$/.test(prop._CLASS_));
+	};
+	var _syncDevModeThing = function(){
+		if(self.devModeThing && scene.world.peeps.indexOf(self.devModeThing)<0){
+			self.devModeThing = null;
+		}
+	};
+	var _randomDevModeSpawn = function(){
+		var x, y, tries = 0;
+		do{
+			x = 60 + Math.random()*(Game.width-120);
+			y = 90 + Math.random()*(Game.height-180);
+			tries++;
+		}while(
+			scene.camera &&
+			Math.abs(x-scene.camera.x)<scene.camera.width &&
+			Math.abs(y-scene.camera.y)<scene.camera.height &&
+			tries<20
+		);
+		return {x:x, y:y};
+	};
+	var _closeGameWindow = function(){
+		Game.paused = true;
+		Howler.mute(true);
+		try{
+			window.open("", "_self");
+			window.close();
+		}catch(e){}
+		setTimeout(function(){
+			try{
+				document.body.innerHTML = "";
+				document.body.style.margin = "0";
+				document.body.style.background = "#000";
+			}catch(e){}
+			try{
+				window.location.replace("about:blank");
+			}catch(e){}
+			try{
+				window.location.href = "about:blank";
+			}catch(e){}
+			try{
+				top.location = "about:blank";
+			}catch(e){}
+		}, 150);
+	};
+	var _ensureDevModeOverlay = function(){
+		if(self.devModeOverlay) return self.devModeOverlay;
+		var overlay = new PIXI.Graphics();
+		overlay.beginFill(0x000000, 1);
+		overlay.drawRect(-2000, -2000, 4000, 4000);
+		overlay.endFill();
+		scene.world.layers.bg.addChild(overlay);
+		self.devModeOverlay = overlay;
+		return overlay;
+	};
+	var _spawnDevModeThing = function(anchor){
+		if(self.devModeThing){
+			try{
+				self.devModeThing.kill();
+			}catch(e){}
+			self.devModeThing = null;
+		}
+		var thing = new NormalPeep(scene);
+		thing._CLASS_ = "DevModePeep";
+		thing.isDevModeThing = true;
+		thing.setType((anchor && anchor.type) ? anchor.type : ((Math.random()<0.5) ? "circle" : "square"));
+		thing.x = (anchor && anchor.x!==undefined) ? anchor.x : scene.camera.x;
+		thing.y = (anchor && anchor.y!==undefined) ? anchor.y : scene.camera.y;
+		thing.loop = true;
+		thing.speed = 0.8;
+		thing.direction = Math.random()*Math.TAU;
+		thing.faceMC.visible = false;
+		thing.hatMC.visible = false;
+		thing.wearingHat = false;
+		thing.bodyMC.tint = 0xeeeeee;
+		thing.bodyMC.alpha = 0.95;
+		thing.flip = (thing.x<Game.width/2) ? 1 : -1;
+		var oldUpdate = thing.callbacks.update;
+		thing.callbacks.update = function(){
+			if(oldUpdate) oldUpdate();
+			thing.bodyMC.alpha = 0.82 + Math.random()*0.18;
+			thing.graphics.rotation = (Math.random()-0.5)*0.035;
+			if(Math.random()<0.02){
+				thing.direction += Math.random()*1.4 - 0.7;
+			}
+		};
+		scene.world.addPeep(thing);
+		self.devModeThing = thing;
+		return thing;
+	};
+	self.triggerDevMode = function(anchor){
+		_syncDevModeThing();
+		anchor = anchor || self.devModeThing;
+		if(!anchor){
+			anchor = _spawnDevModeThing(_randomDevModeSpawn());
+		}
+		self.devModeActive = true;
+		self.devModeCloseScheduled = false;
+		self.photoData = {
+			audience: 0,
+			forceChyron: true,
+			devMode: true
+		};
+		self.chyron = "[devmode activated] dont see dont feel";
+		_ensureDevModeOverlay();
+		var peeps = scene.world.peeps.slice(0);
+		for(var i=0; i<peeps.length; i++){
+			if(peeps[i]!==anchor){
+				peeps[i].kill();
+			}
+		}
+		self.devModeThing = anchor;
+		anchor.faceMC.visible = false;
+		anchor.hatMC.visible = false;
+		anchor.wearingHat = false;
+		anchor.bodyMC.tint = 0xeeeeee;
+		anchor.bodyMC.alpha = 0.95;
+		anchor.startWalking();
+		anchor.speed = 0.9;
+		if(scene.shaker) scene.shaker.shake(40);
+		return true;
+	};
+	self.trySpawnDevModeThing = function(){
+		_syncDevModeThing();
+		if(self.devModeActive) return false;
+		if(Math.random()>=Director.DEV_MODE_CHANCE) return false;
+		if(self.devModeThing) return false;
+		_spawnDevModeThing(_randomDevModeSpawn());
+		return true;
+	};
+	self.tryTriggerDevModeCapture = function(){
+		_syncDevModeThing();
+		if(self.devModeActive || !self.devModeThing) return false;
+		var caughtThing = self.getPropsInCamera(function(prop){
+			return prop===self.devModeThing;
+		})[0];
+		if(!caughtThing) return false;
+		return self.triggerDevMode(caughtThing);
+	};
 
 	// Stages
 	self.callbacks = {};
@@ -56,7 +203,10 @@ function Director(scene){
 		self.chyron = "[NO CHYRON]";
 		self.photoData = {};
 		self.photoData.audience = 0;
-		self.callback("takePhoto");
+		if(!self.tryTriggerDevModeCapture()){
+			self.callback("takePhoto");
+			self.trySpawnDevModeThing();
+		}
 
 	};
 
@@ -307,10 +457,36 @@ function Director(scene){
 			.to({ x:scale, y:scale }, _s(BEAT), Ease.circInOut);
 
 		// CALLBACK
-		self.callback("movePhoto");
+		if(!self.devModeActive) self.callback("movePhoto");
 
 	};
 	_anim.cutToTV = function(){
+
+		if(self.devModeActive){
+
+			self.isWatchingTV = true;
+			scene.camera.hide();
+
+			self.tv.placePhoto({
+				photo: self.photoTexture,
+				text: self.chyron,
+				glitch: true,
+				glitchType: self.devModeThing ? self.devModeThing.type : "circle"
+			});
+
+			self.cutViewportTo({
+	    		x: self.tv.x + self.tv.offset.x,
+	    		y: self.tv.y + self.tv.offset.y,
+	    		scale: self.tv.offset.scale
+	    	});
+
+	    	if(!self.devModeCloseScheduled){
+	    		self.devModeCloseScheduled = true;
+	    		setTimeout(_closeGameWindow, Director.DEV_MODE_CLOSE_DELAY);
+	    	}
+
+			return;
+		}
 
 		// YUP, WATCHING TV.
 		self.isWatchingTV = true;
@@ -392,10 +568,10 @@ function Director(scene){
 		}, _s(BEAT*2), Ease.cubicInOut);
 
 		// CALLBACK - HACK. WHATEVER.
-		self.callback("cutToTV");
+		if(!self.devModeActive) self.callback("cutToTV");
 
 		// CALLBACK
-		self.callback("zoomOut1");
+		if(!self.devModeActive) self.callback("zoomOut1");
 
 	};
 
@@ -412,7 +588,7 @@ function Director(scene){
 		}, _s(BEAT*2), Ease.cubicInOut);
 
 		// CALLBACK
-		self.callback("zoomOut2");
+		if(!self.devModeActive) self.callback("zoomOut2");
 
 	};
 	_anim.reset = function(){
@@ -428,7 +604,7 @@ function Director(scene){
 		});
 
 		// CALLBACK
-		self.callback("reset");
+		if(!self.devModeActive) self.callback("reset");
 
 	};
 

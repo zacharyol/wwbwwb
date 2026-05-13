@@ -73,6 +73,39 @@ function TV(scene){
 		photo = new PIXI.Sprite(photoTexture);
 	    photoContainer.addChild(photo);
 
+	    if(options.glitch){
+	    	var blackout = new PIXI.Graphics();
+	    	blackout.beginFill(0x000000, 1);
+	    	blackout.drawRect(0, 0, Camera.WIDTH, Camera.HEIGHT);
+	    	blackout.endFill();
+	    	photoContainer.addChild(blackout);
+
+	    	var ghost = new PIXI.Sprite(photoTexture);
+	    	ghost.alpha = 0.18;
+	    	ghost.tint = 0x44aaff;
+	    	ghost.x = -5 + Math.random()*10;
+	    	ghost.y = -3 + Math.random()*6;
+	    	photoContainer.addChild(ghost);
+
+	    	var body = MakeMovieClip("body");
+	    	body.gotoAndStop((options.glitchType=="square") ? 1 : 0);
+	    	body.scale.x = body.scale.y = 0.58;
+	    	body.x = Camera.WIDTH*0.5;
+	    	body.y = Camera.HEIGHT*0.82;
+	    	body.tint = 0xf5f5f5;
+	    	photoContainer.addChild(body);
+
+	    	for(var i=0; i<7; i++){
+	    		var glitchLine = new PIXI.Graphics();
+	    		var y = 10 + i*18 + Math.random()*6;
+	    		var alpha = 0.08 + Math.random()*0.15;
+	    		glitchLine.beginFill((i%2===0) ? 0xffffff : 0xff3355, alpha);
+	    		glitchLine.drawRect(-6 + Math.random()*12, y, Camera.WIDTH+12, 2 + Math.random()*3);
+	    		glitchLine.endFill();
+	    		photoContainer.addChild(glitchLine);
+	    	}
+	    }
+
 		// Chryon container
 		var chyron = new PIXI.Container();
 		chyron.alpha = 0;
@@ -96,7 +129,14 @@ function TV(scene){
 			if(text.length>max){ // more than [max] chars...
 				fontsize = Math.floor(max*fontsize/text.length);
 			}
-		    var text = new PIXI.Text(text, {font:"bold "+fontsize+"px Poppins", fill:"#FFF"});
+		    fontsize = Math.max(fontsize, options.glitch ? 38 : 24);
+		    var text = new PIXI.Text(text, {
+		    	font:"bold "+fontsize+"px Poppins",
+		    	fill:"#FFF",
+		    	wordWrap: true,
+		    	wordWrapWidth: options.glitch ? 1500 : 1800,
+		    	lineHeight: fontsize
+		    });
 		    text.scale.x = text.scale.y = 0.2;
 		    text.anchor.x = 0;
 		    text.anchor.y = 0.5;

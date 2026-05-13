@@ -34,7 +34,7 @@ function Stage_Hat(self){
                 if(caught.hat){
                     p.audience = 3;
                     p.caughtHat = caught.hat;
-                    d.chyron = "OOH NICE HAT";
+                    d.chyron = "OOH NICE HAT...";
                     return true;
                 }
                 return false;
